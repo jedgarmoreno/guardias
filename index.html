@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Planilla de guardias</title>
+<style>
+:root{
+  --bg:#f6f5f2; --card:#fff; --ink:#1d1d1b; --mut:#6b6a66; --line:#d9d6cf;
+  --head:#3d3d3a; --we:#efece5; --acc:#2f5d8a; --bad:#b3261e; --ok:#2e7d32; --lock:#8a6d2f;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink)}
+main{max-width:1200px;margin:0 auto;padding:16px}
+h1{font-size:1.3rem;margin:0 0 12px}
+h2{font-size:1rem;margin:0 0 8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:12px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+label{font-size:.85rem;color:var(--mut)}
+input,select,button{font:inherit;font-size:.95rem;padding:7px 9px;border:1px solid var(--line);border-radius:7px;background:#fff;color:var(--ink)}
+input[type=number]{width:80px}
+button{cursor:pointer}
+button.pri{background:var(--acc);color:#fff;border-color:var(--acc)}
+button.sm{padding:4px 8px;font-size:.85rem}
+.hint{font-size:.8rem;color:var(--mut);margin-top:6px}
+.vac-row{display:flex;gap:6px;align-items:center;margin:4px 0;flex-wrap:wrap}
+.vac-row input{width:64px}
+details summary{cursor:pointer;font-weight:600}
+.cfg-grid{display:grid;grid-template-columns:78px 1fr 1fr 1fr;gap:6px;align-items:center;margin-top:8px}
+.cfg-grid input{width:100%}
+
+.sheet{display:grid;grid-template-columns:1fr;gap:12px}
+@media(min-width:900px){.sheet{grid-template-columns:1fr 280px}}
+.title{font-size:1.5rem;margin:0 0 6px}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);border-left:1px solid #999;border-top:1px solid #999}
+.cal .dh{background:var(--head);color:#fff;text-align:center;padding:6px 2px;font-size:clamp(.65rem,1.6vw,.95rem);border-right:1px solid #999}
+.cell{position:relative;min-height:clamp(64px,11vw,110px);border-right:1px solid #999;border-bottom:1px solid #999;padding:3px;cursor:pointer;background:#fff}
+.cell.out{background:#ececec;cursor:default}
+.cell.nw{background:var(--we)}
+.cell .num{font-size:clamp(.7rem,1.6vw,1rem);color:#555}
+.cell.hol .num{display:inline-block;border:1.5px solid #333;border-radius:50%;padding:0 4px}
+.cell .act{position:absolute;left:0;right:0;top:42%;transform:translateY(-50%);text-align:center;font-weight:700;font-size:clamp(.85rem,2.6vw,1.7rem);letter-spacing:.02em}
+.cell .pas{position:absolute;right:5px;bottom:3px;font-size:clamp(.65rem,1.5vw,.95rem);font-weight:600}
+.cell .vac{position:absolute;right:4px;top:3px;font-size:clamp(.5rem,1.1vw,.7rem);color:var(--mut)}
+.cell.locked{box-shadow:inset 0 0 0 2px var(--lock)}
+.cell.warn{box-shadow:inset 0 0 0 2px var(--bad)}
+.cell .wmsg{position:absolute;left:3px;bottom:2px;font-size:.6rem;color:var(--bad)}
+
+table.tot{border-collapse:collapse;width:100%;font-size:.85rem}
+table.tot th,table.tot td{border:1px solid var(--line);padding:4px 5px;text-align:center}
+table.tot th{background:#f0eee9;font-weight:600}
+table.tot td.s{font-weight:700;text-align:left}
+td.zero{color:var(--bad);font-weight:700}
+tr.obj td{color:var(--mut);font-size:.8rem}
+.legend{font-size:.75rem;color:var(--mut);margin-top:6px;line-height:1.4}
+
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;align-items:center;justify-content:center;z-index:10}
+.modal{background:#fff;border-radius:12px;padding:16px;width:min(340px,92vw)}
+.modal .row{margin:8px 0}
+.modal select{min-width:80px}
+.msg{font-size:.85rem;margin-top:6px}
+.msg.bad{color:var(--bad)} .msg.ok{color:var(--ok)}
+
+@media print{
+  @page{size:A4 landscape;margin:8mm}
+  body{background:#fff}
+  .noprint{display:none!important}
+  main{padding:0;max-width:none}
+  .card.sheetcard{border:none;padding:0}
+  .sheet{grid-template-columns:1fr 210px}
+  .cell{min-height:30mm}
+  .cell .act{font-size:20pt}
+  .cell .pas{font-size:11pt}
+  .cell.nw{background:#fff}
+  .cell.warn,.cell.locked{box-shadow:none}
+  .cell .wmsg{display:none}
+}
+</style>
+</head>
+<body>
+<main>
+  <h1 class="noprint">Planilla de guardias</h1>
+
+  <div class="card noprint">
+    <div class="row">
+      <label>Mes <select id="mes"></select></label>
+      <label>Año <input id="anio" type="number" min="2024" max="2100"></label>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <label style="flex:1 1 220px">Feriados (días del mes, separados por coma)
+        <input id="feriados" style="width:100%" placeholder="ej: 8, 9">
+      </label>
+      <button class="sm" id="sugerir">Sugerir nacionales</button>
+    </div>
+    <div class="hint">"Sugerir nacionales" carga los feriados fijos, Carnaval, Jueves y Viernes Santo, y los trasladables según la ley. Verificá con el calendario oficial y agregá los feriados y asuetos locales.</div>
+  </div>
+
+  <div class="card noprint">
+    <h2>Vacaciones / licencias</h2>
+    <div id="vacs"></div>
+    <button class="sm" id="addVac">+ Agregar</button>
+    <div class="hint">La sigla no se asigna (ni activa ni pasiva) entre esos días, inclusive.</div>
+  </div>
+
+  <div class="card noprint">
+    <h2>Fin del mes anterior</h2>
+    <div id="tail"></div>
+    <div class="hint"><span id="tailSrc"></span> Quien estuvo de activa el último día no puede repetir activa el día 1. Si el mes anterior termina en fin de semana o feriado, el bloque sigue con las mismas parejas.</div>
+    <button class="sm" id="tailReset" style="margin-top:6px">Volver a tomar del mes guardado</button>
+  </div>
+
+  <div class="card noprint">
+    <div class="row">
+      <button class="pri" id="generar">Generar planilla</button>
+      <button id="limpiar">Borrar días fijados</button>
+      <button id="copiar">Copiar totales</button>
+    </div>
+    <div class="hint">Tocá un día para corregirlo a mano. Los días corregidos quedan fijados (borde dorado) y se respetan cuando volvés a generar. Borde rojo: hay una regla rota en ese día.</div>
+    <div id="status" class="msg"></div>
+  </div>
+
+  <div class="card sheetcard">
+    <div class="sheet">
+      <div>
+        <div class="title" id="titulo"></div>
+        <div class="cal" id="cal"></div>
+      </div>
+      <div>
+        <table class="tot" id="tot"></table>
+        <div class="legend">
+          <b>Háb.</b> días hábiles de activa · <b>FdS</b> días de fin de semana o feriado de activa (mínimo 2) ·
+          <b>Pas.</b> pasivas en total · <b>P.háb</b> pasivas en día hábil · <b>P.FdS</b> pasivas en fin de semana o feriado ·
+          <b>S/D</b> sábados / domingos de activa (R y MU solo sábados, U y G solo domingos, el resto parejo) · <b>Bloq.</b> fines de semana con pasiva (al menos 1). <b>Obj.</b> reparto parejo en cantidad; quien vuelve de vacaciones se empareja con los días que le quedan, hasta donde se pueda. En rojo: fuera del objetivo.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <details class="card noprint">
+    <summary>Respaldo de datos</summary>
+    <div class="hint" style="margin-top:8px">Guarda todos los meses, vacaciones, feriados y reglas. Hacé un respaldo cada vez que termines un mes y guardalo en Notas, en un mail o en un archivo.</div>
+    <div class="row" style="margin-top:8px">
+      <button class="sm" id="bkCopy">Copiar respaldo</button>
+      <button class="sm" id="bkDown">Descargar respaldo</button>
+    </div>
+    <textarea id="bkText" rows="4" style="width:100%;margin-top:8px;font-size:.8rem" placeholder="Para restaurar: pegá acá el respaldo y tocá Restaurar"></textarea>
+    <div class="row"><button class="sm" id="bkLoad">Restaurar</button>
+      <label class="sm" style="border:1px solid var(--line);border-radius:7px;padding:4px 8px;background:#fff;color:var(--ink);cursor:pointer">Restaurar desde archivo<input type="file" id="bkFile" accept=".json,.txt,application/json,text/plain" style="display:none"></label>
+      <span id="bkMsg" class="msg"></span></div>
+  </details>
+
+  <details class="card noprint">
+    <summary>Reglas (parámetros)</summary>
+    <div class="row" style="margin-top:8px">
+      <label style="flex:1 1 100%">Siglas
+        <input id="cfgSiglas" style="width:100%">
+      </label>
+      <label style="flex:1 1 45%">Solo sábados (fin de semana)
+        <input id="cfgSab" style="width:100%">
+      </label>
+      <label style="flex:1 1 45%">Solo domingos (fin de semana)
+        <input id="cfgDom" style="width:100%">
+      </label>
+      <label style="flex:1 1 100%">Incompatibles de activa (pares separados por ; )
+        <input id="cfgIncomp" style="width:100%" placeholder="C-G; X-Y">
+      </label>
+    </div>
+    <div class="cfg-grid">
+      <b>Día</b><b>Fija</b><b>Reempl.</b><b>Completa</b>
+      <span>Lunes</span><input data-d="0" data-k="fixed"><input data-d="0" data-k="soft"><input data-d="0" data-k="pool">
+      <span>Martes</span><input data-d="1" data-k="fixed"><input data-d="1" data-k="soft"><input data-d="1" data-k="pool">
+      <span>Miércoles</span><input data-d="2" data-k="fixed"><input data-d="2" data-k="soft"><input data-d="2" data-k="pool">
+      <span>Jueves</span><input data-d="3" data-k="fixed"><input data-d="3" data-k="soft"><input data-d="3" data-k="pool">
+      <span>Viernes</span><input data-d="4" data-k="fixed"><input data-d="4" data-k="soft"><input data-d="4" data-k="pool">
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button class="sm" id="cfgSave">Guardar reglas</button>
+      <button class="sm" id="cfgReset">Restaurar originales</button>
+    </div>
+    <div class="hint">Siglas separadas por coma. <b>Fija</b>: va siempre ese día si está disponible. <b>Reempl.</b>: también va ese día, pero algunos días la cambia la sigla de "Completa" para emparejar los hábiles. <b>Completa</b>: si no hay reemplazable, ocupa el segundo lugar del día; si hay, es quien la reemplaza. El orden es la preferencia: primero la primera, después la segunda, y así.</div>
+  </details>
+</main>
+
+<div class="modal-bg noprint" id="mbg">
+  <div class="modal">
+    <h2 id="mTitle"></h2>
+    <div class="row"><label>Activa 1</label><select id="mA1"></select></div>
+    <div class="row"><label>Activa 2</label><select id="mA2"></select></div>
+    <div class="row"><label>Pasiva</label><select id="mP"></select></div>
+    <div id="mMsg" class="msg"></div>
+    <div class="row" style="justify-content:flex-end;margin-top:12px">
+      <button class="sm" id="mUnlock">Desfijar</button>
+      <button class="sm" id="mCancel">Cancelar</button>
+      <button class="sm pri" id="mOk">Fijar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+const MESES=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+const DIAS=["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"];
+const DEFAULT_CFG={
+  siglas:["M","V","C","R","MU","E","U","G"],
+  incomp:[["C","G"]],
+  soloSab:["R","MU"],
+  soloDom:["U","G"],
+  prio:[
+    {fixed:["R"],soft:["MU"],pool:["V"]},
+    {fixed:["C"],soft:[],pool:["M","U"]},
+    {fixed:["V"],soft:["E"],pool:["G"]},
+    {fixed:["M"],soft:[],pool:["MU","R","C"]},
+    {fixed:["U"],soft:["G"],pool:["E"]}
+  ]
+};
+const ls={
+  get(k){try{const v=localStorage.getItem(k);return v?JSON.parse(v):null}catch(e){return null}},
+  set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+};
+let cfg=ls.get("guardias:cfg")||JSON.parse(JSON.stringify(DEFAULT_CFG));
+if(!cfg.soloSab)cfg.soloSab=DEFAULT_CFG.soloSab.slice();
+if(!cfg.soloDom)cfg.soloDom=DEFAULT_CFG.soloDom.slice();
+if(!cfg.prio||!cfg.prio.every(p=>Array.isArray(p.soft)))cfg.prio=JSON.parse(JSON.stringify(DEFAULT_CFG.prio));
+const $=id=>document.getElementById(id);
+
+// ---------- estado del mes ----------
+let Y,Mo; // Mo 0-11
+let st; // {feriados:[], vacs:[{s,d1,d2}], plan:{day:{a:[x,y],p:z,lock:bool}}}
+function key(){return "guardias:"+Y+"-"+String(Mo+1).padStart(2,"0")}
+function loadMonth(){
+  st=ls.get(key())||{feriados:defaultHolidays(Y,Mo),vacs:[],plan:{}};
+  $("feriados").value=st.feriados.join(", ");
+  renderVacs(); renderTail(); render();
+}
+function save(){ls.set(key(),st)}
+
+// ---------- feriados sugeridos ----------
+function easter(y){const a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),mo=Math.floor((h+l-7*m+114)/31),da=((h+l-7*m+114)%31)+1;return new Date(y,mo-1,da)}
+function addD(dt,n){const r=new Date(dt);r.setDate(r.getDate()+n);return r}
+function trasladable(y,m,d){ // ley 27.399: mar/mié -> lunes anterior; jue/vie -> lunes siguiente
+  const dt=new Date(y,m,d),w=dt.getDay();
+  if(w===2)return addD(dt,-1); if(w===3)return addD(dt,-2);
+  if(w===4)return addD(dt,4); if(w===5)return addD(dt,3); return dt;
+}
+function defaultHolidays(y,m){
+  const e=easter(y);
+  const list=[new Date(y,0,1),addD(e,-48),addD(e,-47),new Date(y,2,24),new Date(y,3,2),addD(e,-3),addD(e,-2),
+    new Date(y,4,1),new Date(y,4,25),trasladable(y,5,17),new Date(y,5,20),new Date(y,6,9),
+    trasladable(y,7,17),trasladable(y,9,12),trasladable(y,10,20),new Date(y,11,8),new Date(y,11,25)];
+  return [...new Set(list.filter(d=>d.getFullYear()===y&&d.getMonth()===m).map(d=>d.getDate()))].sort((a,b)=>a-b);
+}
+
+// ---------- calendario ----------
+function monthDays(){
+  const n=new Date(Y,Mo+1,0).getDate(),fer=new Set(st.feriados);
+  const out=[];
+  for(let d=1;d<=n;d++){
+    const w=(new Date(Y,Mo,d).getDay()+6)%7; // 0=lun
+    out.push({d,w,hol:fer.has(d),nw:w>=5||fer.has(d)});
+  }
+  return out;
+}
+function onVac(s,d){return st.vacs.some(v=>v.s===s&&d>=v.d1&&d<=v.d2)}
+function availOn(d){return cfg.siglas.filter(s=>!onVac(s,d))}
+function incompatible(a,b){return cfg.incomp.some(p=>(p[0]===a&&p[1]===b)||(p[0]===b&&p[1]===a))}
+function blocks(days){
+  const b=[];let cur=null;
+  for(const x of days){
+    if(x.nw){if(!cur){cur=[];b.push(cur)}cur.push(x)}else cur=null;
+  }
+  return b;
+}
+
+// ---------- generador ----------
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+// cupos parejos: proporcionales a los días disponibles, con margen de 1 (piso/techo)
+// reparto parejo en cantidad: todos lo mismo, salvo quien no puede llegar
+// (vacaciones o reglas); lo que le falta a ese se reparte entre los demás
+function fillEven(S,slots,cap,minV){
+  let free=S.slice(),t={};
+  for(let k=0;k<12&&free.length;k++){
+    const each=slots/free.length,capped=free.filter(s=>cap[s]<each);
+    if(!capped.length){free.forEach(s=>t[s]=each);break}
+    capped.forEach(s=>{t[s]=cap[s];slots-=cap[s]});free=free.filter(s=>!capped.includes(s));
+  }
+  const o={};
+  S.forEach(s=>{let lo=Math.min(Math.floor(t[s]+1e-9),cap[s]),hi=Math.max(lo,Math.min(Math.ceil(t[s]-1e-9),cap[s]));
+    if(minV){const m=Math.min(minV,cap[s]);if(lo<m)lo=m;if(hi<lo)hi=lo}
+    o[s]={t:Math.max(t[s],lo),lo,hi}});
+  return o;
+}
+function targets(days){
+  const S=cfg.siglas,hab=days.filter(x=>!x.nw),nw=days.filter(x=>x.nw);
+  const capF={},capP={};
+  S.forEach(s=>{
+    capF[s]=blocks(days).filter(b=>b.every(x=>!onVac(s,x.d))).reduce((n,b)=>n+Math.ceil(b.length/2),0);
+    capP[s]=days.filter(x=>!onVac(s,x.d)).length;
+  });
+  return {hab:fillEven(S,hab.length*2,habCaps(days),0),fin:fillEven(S,nw.length*2,capF,2),pas:fillEven(S,days.length,capP,0)};
+}
+// cuántos días hábiles puede hacer como máximo cada sigla respetando las fijas,
+// las incompatibles y que nadie repita activa al día siguiente
+function habCaps(days){
+  const S=cfg.siglas,byD={};days.forEach(x=>byD[x.d]=x);
+  const tl=getTail(),tA=tl.length?tl[tl.length-1].a:[];
+  const fx=x=>x&&!x.nw?cfg.prio[x.w].fixed.concat(cfg.prio[x.w].soft).filter(s=>!onVac(s,x.d)):[];
+  const cap={};
+  S.forEach(s=>{cap[s]=days.filter(x=>{
+    if(x.nw||onVac(s,x.d))return false;
+    if(x.d===1&&tA.includes(s))return false;
+    const f=fx(x);if(f.includes(s))return true;
+    if(f.length>=2&&!cfg.prio[x.w].pool.includes(s))return false;
+    if(f.some(t=>incompatible(s,t)))return false;
+    if(fx(byD[x.d-1]).includes(s)||fx(byD[x.d+1]).includes(s))return false;
+    return true;}).length});
+  return cap;
+}
+// la regla "activa no repite al día siguiente" solo vale alrededor de fines de semana
+// y de feriados largos (bloque con sábado/domingo o de más de 2 días). Entre días hábiles no.
+const _strong=new WeakMap();
+function strongSet(days){
+  if(_strong.has(days))return _strong.get(days);
+  const set=new Set();
+  blocks(days).forEach(b=>{if(b.length>2||b.some(y=>y.w>=5))b.forEach(y=>set.add(y.d))});
+  _strong.set(days,set);return set;
+}
+function gapBefore(days,tail,d){
+  const st_=strongSet(days);
+  if(st_.has(d))return true;
+  if(d>1)return st_.has(d-1);
+  const t=tail[tail.length-1];return !!(t&&t.nw);
+}
+// lado del fin de semana: sábado (S) o domingo (D)
+const lado=x=>x.w===5?"S":x.w===6?"D":"";
+function attempt(days,tail){
+  const S=cfg.siglas,c={};
+  const tg=targets(days);
+  S.forEach(s=>c[s]={hab:0,fin:0,ph:0,pf:0,blk:0,S:0,D:0});
+  const plan={};
+  const bl=blocks(days),blockOf={};
+  bl.forEach((b,i)=>b.forEach(x=>blockOf[x.d]=i));
+  const doneBlock=new Set();
+  const jit=()=>Math.random()*0.9;
+  function countDay(x,a,p){
+    a.forEach(s=>{if(c[s]){x.nw?c[s].fin++:c[s].hab++}});
+    if(p&&c[p]){x.nw?c[p].pf++:c[p].ph++}
+  }
+  function pickPas(x,a,prevP,ban){
+    let cand=availOn(x.d).filter(s=>!a.includes(s));
+    const c2=cand.filter(s=>!(ban||[]).includes(s));if(c2.length)cand=c2;
+    const ps=s=>c[s].ph+c[s].pf-tg.pas[s].t+(c[s].ph+c[s].pf>=tg.pas[s].hi?5:0)+(s===prevP?3:0)+jit();
+    cand.sort((s,t)=>ps(s)-ps(t));
+    return cand[0]||"";
+  }
+  function pickActives(x,prio,prevA){
+    const av=availOn(x.d),ch=[];
+    const ok=s=>!ch.includes(s)&&!prevA.includes(s)&&ch.every(t=>!incompatible(s,t));
+    const T=x.nw?tg.fin:tg.hab,cnt=s=>x.nw?c[s].fin:c[s].hab;
+    const over=s=>cnt(s)>=T[s].hi;
+    const score=s=>cnt(s)-T[s].t+jit();
+    if(prio){
+      // fija: siempre. Reemplazable: va salvo que la que completa la reemplace para emparejar.
+      prio.fixed.filter(s=>av.includes(s)).forEach(s=>{if(ch.length<2&&ok(s))ch.push(s)});
+      const cands=prio.soft.concat(prio.pool).filter(s=>av.includes(s));
+      const sc2=s=>score(s)-(prio.soft.includes(s)?1.2:0)+(over(s)?3:0)+0.4*Math.max(0,prio.pool.indexOf(s));
+      cands.sort((s,t)=>sc2(s)-sc2(t));
+      for(const s of cands){if(ch.length<2&&ok(s))ch.push(s)}
+    }
+    const rest=av.filter(s=>!ch.includes(s)).sort((s,t)=>score(s)-score(t));
+    for(const s of rest){if(ch.length<2&&ok(s)&&!over(s))ch.push(s)}
+    for(const s of rest){if(ch.length<2&&ok(s))ch.push(s)}
+    // último recurso: si no alcanza, se permite repetir (queda marcado en rojo)
+    for(const s of rest){if(ch.length<2&&!ch.includes(s)&&ch.every(t=>!incompatible(s,t)))ch.push(s)}
+    return ch;
+  }
+  // bloque no hábil: dos parejas alternadas; la pasiva de cada día sale de la otra pareja.
+  // pre = días del mismo bloque que quedaron en el mes anterior (continúa su patrón).
+  function assignBlock(b,pre,prevA,nextDay){
+    const n=b.length,k=pre.length;
+    const av=S.filter(s=>b.every(y=>!onVac(s,y.d)));
+    const known=[null,null];
+    pre.forEach((q,j)=>{known[j%2]=q.a.slice()});
+    for(let par=0;par<2;par++)if(known[par]&&known[par].some(s=>!av.includes(s)))known[par]=null;
+    const firstPar=k%2,lastPar=(k+n-1)%2;
+    const needPar=new Set();for(let i=0;i<n;i++)needPar.add((k+i)%2);
+    const nextWant=nextDay&&!nextDay.nw?cfg.prio[nextDay.w].fixed.concat(cfg.prio[nextDay.w].soft,cfg.prio[nextDay.w].pool):[];
+    const side=["",""];pre.concat(b).forEach((y,g)=>{if(lado(y))side[g%2]=lado(y)});
+    const roleOk=(s,par)=>!(side[par]==="S"&&cfg.soloDom.includes(s))&&!(side[par]==="D"&&cfg.soloSab.includes(s));
+    const sdPen=(s,par)=>side[par]&&!cfg.soloSab.includes(s)&&!cfg.soloDom.includes(s)?(c[s][side[par]]-c[s][side[par]==="S"?"D":"S"])*3:0;
+    for(let tries=0;tries<25;tries++){
+      const pairs=[known[0]&&known[0].slice(),known[1]&&known[1].slice()];
+      const used=new Set([...(pairs[0]||[]),...(pairs[1]||[])]);
+      let fail=false;
+      for(const par of [firstPar,1-firstPar]){
+        if(pairs[par]||!needPar.has(par))continue;
+        const sc=s=>(c[s].blk>0?4:0)+(c[s].fin-tg.fin[s].t)*1.5+(c[s].fin>=tg.fin[s].hi?4:0)+Math.random()*2+(par===lastPar&&nextWant.includes(s)?3:0)+sdPen(s,par);
+        const cand=av.filter(s=>!used.has(s)&&!(par===firstPar&&prevA.includes(s))&&(tries<20?roleOk(s,par):true)).sort((x,y)=>sc(x)-sc(y));
+        const pr=[];
+        for(const s of cand){if(pr.length<2&&pr.every(t=>!incompatible(s,t)))pr.push(s)}
+        if(pr.length<2){fail=true;break}
+        pairs[par]=pr;pr.forEach(s=>used.add(s));
+      }
+      if(fail)continue;
+      if(pairs[firstPar].some(s=>prevA.includes(s)))continue;
+      const got=new Set(pre.map(q=>q.p).filter(Boolean));
+      const res=[];
+      for(let i=0;i<n;i++){
+        const g=k+i,act=pairs[g%2],y=b[i];
+        let pool=(pairs[1-g%2]||[]).filter(s=>!act.includes(s)&&!onVac(s,y.d));
+        if(!pool.length)pool=av.filter(s=>!used.has(s));
+        pool.sort((s,t)=>((got.has(s)?10:0)+c[s].blk*3+Math.random())-((got.has(t)?10:0)+c[t].blk*3+Math.random()));
+        const p=pool[0]||"";
+        if(p)got.add(p);
+        res.push({y,a:act.slice(),p});
+      }
+      const newP=new Set();
+      res.forEach(r=>{plan[r.y.d]={a:r.a,p:r.p};countDay(r.y,r.a,r.p);if(r.p)newP.add(r.p)});
+      newP.forEach(s=>c[s].blk++);
+      [0,1].forEach(par=>{if(side[par]&&pairs[par]&&b.some((y,i)=>(k+i)%2===par&&lado(y)))pairs[par].forEach(s=>c[s][side[par]]++)});
+      return true;
+    }
+    return false;
+  }
+  const last=tail.length?tail[tail.length-1]:null;
+  let prevA=last?last.a.filter(Boolean):[],prevP=last?last.p:"";
+  const pre=[];
+  if(days[0].nw)for(let i=tail.length-1;i>=0&&tail[i].nw&&tail[i].a.filter(Boolean).length===2;i--)pre.unshift(tail[i]);
+  for(const x of days){
+    const lk=st.plan[x.d]&&st.plan[x.d].lock;
+    const gap=gapBefore(days,tail,x.d),ban=gap?[]:prevA;
+    if(lk){
+      const L=st.plan[x.d];plan[x.d]={a:L.a.slice(),p:L.p,lock:true};
+      countDay(x,L.a,L.p);
+      if(x.nw&&L.p&&c[L.p]&&!doneBlock.has("p"+blockOf[x.d]+L.p)){c[L.p].blk++;doneBlock.add("p"+blockOf[x.d]+L.p)}
+      prevA=L.a.filter(Boolean);prevP=L.p;continue;
+    }
+    if(x.nw){
+      const bi=blockOf[x.d];
+      if(!doneBlock.has(bi)){
+        doneBlock.add(bi);
+        const b=bl[bi];
+        const nextDay=days.find(y=>y.d===b[b.length-1].d+1);
+        if(!b.some(y=>st.plan[y.d]&&st.plan[y.d].lock))assignBlock(b,b[0].d===1?pre:[],prevA,nextDay);
+      }
+      if(!plan[x.d]){
+        const a=pickActives(x,null,prevA),p=pickPas(x,a,prevP,ban);
+        plan[x.d]={a,p};countDay(x,a,p);
+        if(p&&!doneBlock.has("p"+bi+p)){c[p].blk++;doneBlock.add("p"+bi+p)}
+      }
+      prevA=plan[x.d].a;prevP=plan[x.d].p;continue;
+    }
+    const a=pickActives(x,cfg.prio[x.w],prevA),p=pickPas(x,a,prevP,ban);
+    plan[x.d]={a,p};countDay(x,a,p);prevA=a;prevP=p;
+  }
+  return {plan,c};
+}
+function variance(arr){if(!arr.length)return 0;const m=arr.reduce((a,b)=>a+b,0)/arr.length;return arr.reduce((a,b)=>a+(b-m)*(b-m),0)/arr.length}
+function countsOf(days,plan){
+  const c={},bl=blocks(days);
+  cfg.siglas.forEach(s=>c[s]={hab:0,fin:0,ph:0,pf:0,blk:0,S:0,D:0});
+  for(const x of days){const P=plan[x.d];if(!P)continue;
+    const l=lado(x);
+    for(const s of P.a)if(c[s]){if(x.nw)c[s].fin++;else c[s].hab++;if(l)c[s][l]++}
+    if(P.p&&c[P.p]){if(x.nw)c[P.p].pf++;else c[P.p].ph++}}
+  for(const b of bl){const g=new Set();for(const x of b){const P=plan[x.d];if(P&&P.p)g.add(P.p)}g.forEach(s=>{if(c[s])c[s].blk++})}
+  return c;
+}
+// fijas del día 1 del mes siguiente: el último día del mes no debería usarlas (repetirían activa)
+const _nextFx=new WeakMap();
+function nextFixed(days){
+  if(_nextFx.has(days))return _nextFx.get(days);
+  const y=Mo===11?Y+1:Y,m=(Mo+1)%12,ns=ls.get("guardias:"+y+"-"+String(m+1).padStart(2,"0"));
+  const fer=ns?ns.feriados:defaultHolidays(y,m),w=(new Date(y,m,1).getDay()+6)%7;
+  const r=(w>=5||fer.includes(1))?[]:cfg.prio[w].fixed.concat(cfg.prio[w].soft);
+  _nextFx.set(days,r);return r;
+}
+function scorePlan(days,plan,tail,tg){
+  let sc=0;const S=cfg.siglas,c=countsOf(days,plan);
+  const lastP=plan[days[days.length-1].d];
+  if(lastP)lastP.a.forEach(s=>{if(nextFixed(days).includes(s))sc+=100});
+  let prev=tail.length?tail[tail.length-1]:null;
+  for(const x of days){
+    const P=plan[x.d];if(!P){prev=null;continue}
+    const [a1,a2]=P.a;
+    if(!a1||!a2)sc+=200;
+    if(a1&&a1===a2)sc+=500;
+    if(a1&&a2&&incompatible(a1,a2))sc+=500;
+    if(!P.p)sc+=50;else if(P.a.includes(P.p))sc+=500;
+    for(const s of [a1,a2,P.p])if(s&&onVac(s,x.d))sc+=500;
+    if(prev&&prev.a){for(const s of P.a)if(s&&prev.a.includes(s))sc+=500;if(!gapBefore(days,tail,x.d)&&P.p&&prev.a.includes(P.p))sc+=500;if(prev.p&&prev.p===P.p)sc+=4}
+    const l=lado(x);
+    if(l==="S")P.a.forEach(s=>{if(cfg.soloDom.includes(s))sc+=300});
+    if(l==="D")P.a.forEach(s=>{if(cfg.soloSab.includes(s))sc+=300});
+    prev=P;
+    if(x.nw)continue;
+    const pr=cfg.prio[x.w],av=availOn(x.d);
+    const repl=P.a.some(s=>pr.pool.includes(s));
+    pr.fixed.forEach(f=>{if(av.includes(f)&&!P.a.includes(f))sc+=200});
+    pr.soft.forEach(f=>{if(av.includes(f)&&!P.a.includes(f))sc+=repl?15:200});
+    P.a.forEach(s=>{const i=pr.pool.indexOf(s);if(i>0)sc+=4*i});
+    const want=pr.fixed.concat(pr.soft,pr.pool).filter(s=>av.includes(s));
+    const got=P.a.filter(s=>want.includes(s)).length;
+    sc+=15*Math.max(0,Math.min(2,want.length)-got);
+  }
+  // fines de semana: dos parejas alternadas y pasiva cruzada
+  for(const b of blocks(days)){
+    for(let i=2;i<b.length;i++){const P=plan[b[i].d],Q=plan[b[i-2].d];if(P&&Q&&!(P.lock||Q.lock)&&P.a.slice().sort().join()!==Q.a.slice().sort().join())sc+=30}
+    for(let i=0;i<b.length;i++){const P=plan[b[i].d];if(!P||P.lock||b.length<2)continue;
+      const nb=plan[(b[i+1]||b[i-1]).d];if(nb&&P.p&&!nb.a.includes(P.p))sc+=15}
+  }
+  const nblk=blocks(days).length,dev=(v,r)=>Math.max(0,v-r.hi)+Math.max(0,r.lo-v);
+  S.forEach(s=>{
+    const canWork=days.some(x=>x.nw&&!onVac(s,x.d));
+    if(nblk&&canWork&&c[s].blk===0)sc+=60;
+    if(c[s].blk>1)sc+=6*(c[s].blk-1);
+    sc+=40*dev(c[s].hab,tg.hab[s])+40*dev(c[s].fin,tg.fin[s])+25*dev(c[s].ph+c[s].pf,tg.pas[s]);
+    sc+=0.5*Math.abs(c[s].hab-tg.hab[s].t)+0.5*Math.abs(c[s].fin-tg.fin[s].t);
+    if(!cfg.soloSab.includes(s)&&!cfg.soloDom.includes(s))sc+=25*Math.max(0,Math.abs(c[s].S-c[s].D)-((c[s].S+c[s].D)%2));
+  });
+  return sc;
+}
+// mejora local: cambia siglas de a una y se queda con lo que mejora
+function improve(days,plan,tail,tg,iters){
+  const free=days.filter(x=>!(plan[x.d]&&plan[x.d].lock));
+  const wk=free.filter(x=>!x.nw),bl=blocks(days).filter(b=>b.every(x=>!(plan[x.d]&&plan[x.d].lock)));
+  const S=cfg.siglas,rnd=a=>a[Math.floor(Math.random()*a.length)];
+  let cur=scorePlan(days,plan,tail,tg),bestS=cur,best=Object.assign({},plan);
+  const snap=ds=>ds.map(d=>[d,plan[d]]);
+  const restore=sv=>sv.forEach(([d,P])=>plan[d]=P);
+  for(let it=0;it<iters&&bestS>0;it++){
+    const r=Math.random();let sv;
+    if(r<0.35&&wk.length){ // cambiar una activa de un día hábil
+      const x=rnd(wk),P=plan[x.d],i=Math.random()<.5?0:1,s=rnd(availOn(x.d));
+      if(P.a.includes(s))continue;
+      sv=snap([x.d]);const a=P.a.slice();a[i]=s;plan[x.d]={a,p:P.p===s?P.a[i]:P.p};
+    }else if(r<0.55&&free.length){ // cambiar la pasiva
+      const x=rnd(free),P=plan[x.d],s=rnd(availOn(x.d));
+      if(P.a.includes(s)||P.p===s)continue;
+      sv=snap([x.d]);plan[x.d]={a:P.a,p:s};
+    }else if(r<0.75&&wk.length>1){ // intercambiar una activa entre dos días hábiles
+      const x=rnd(wk),y=rnd(wk);if(x===y)continue;
+      const P=plan[x.d],Q=plan[y.d],i=Math.random()<.5?0:1,j=Math.random()<.5?0:1,s=P.a[i],t=Q.a[j];
+      if(s===t||P.a.includes(t)||Q.a.includes(s))continue;
+      sv=snap([x.d,y.d]);const a=P.a.slice(),b=Q.a.slice();a[i]=t;b[j]=s;
+      plan[x.d]={a,p:P.p===t?s:P.p};plan[y.d]={a:b,p:Q.p===s?t:Q.p};
+    }else if(bl.length){ // reemplazar una sigla en todo un bloque de finde (o intercambiar entre bloques)
+      const b=rnd(bl),ins=new Set();b.forEach(x=>{plan[x.d].a.forEach(s=>ins.add(s));if(plan[x.d].p)ins.add(plan[x.d].p)});
+      const s=rnd([...ins]);
+      const sw=(P,from,to)=>({a:P.a.map(q=>q===from?to:q===to?from:q),p:P.p===from?to:P.p===to?from:P.p});
+      if(Math.random()<.5){
+        const t=rnd(S);if(t===s)continue;
+        sv=snap(b.map(x=>x.d));b.forEach(x=>plan[x.d]=sw(plan[x.d],s,t));
+      }else{
+        const b2=rnd(bl);if(b2===b)continue;
+        const ins2=new Set();b2.forEach(x=>{plan[x.d].a.forEach(q=>ins2.add(q));if(plan[x.d].p)ins2.add(plan[x.d].p)});
+        const t=rnd([...ins2]);if(t===s)continue;
+        sv=snap(b.concat(b2).map(x=>x.d));
+        b.forEach(x=>plan[x.d]=sw(plan[x.d],s,t));b2.forEach(x=>plan[x.d]=sw(plan[x.d],t,s));
+      }
+    }else continue;
+    const n=scorePlan(days,plan,tail,tg);
+    const T=25*Math.pow(0.02,it/iters);
+    if(n<=cur||Math.random()<Math.exp((cur-n)/T)){cur=n;if(cur<bestS){bestS=cur;best=Object.assign({},plan)}}
+    else restore(sv);
+  }
+  Object.keys(best).forEach(d=>plan[d]=best[d]);
+  return bestS;
+}
+function generate(){
+  const days=monthDays(),tail=getTail(),tg=targets(days);
+  let best=null,bs=Infinity;
+  for(let k=0;k<8;k++){
+    let lb=null,ls_=Infinity;
+    for(let i=0;i<300;i++){const r=attempt(days,tail),s=scorePlan(days,r.plan,tail,tg);if(s<ls_){ls_=s;lb=r.plan}}
+    const s=improve(days,lb,tail,tg,30000);
+    if(s<bs){bs=s;best=lb}
+    if(bs<1)break;
+  }
+  st.plan=best;save();render();refreshStatus(true);
+}
+// ---------- mes anterior ----------
+function prevMonth(){return Mo===0?{y:Y-1,m:11}:{y:Y,m:Mo-1}}
+function prevStored(){const {y,m}=prevMonth();return ls.get("guardias:"+y+"-"+String(m+1).padStart(2,"0"))}
+function getTail(){
+  const {y,m}=prevMonth(),n=new Date(y,m+1,0).getDate(),ps=prevStored();
+  const fer=new Set(ps?ps.feriados:defaultHolidays(y,m));
+  const out=[];
+  for(let d=n-2;d<=n;d++){
+    const w=(new Date(y,m,d).getDay()+6)%7;
+    let a=["",""],p="";
+    const man=st.prevManual&&st.prevTail&&st.prevTail[d];
+    if(man){a=man.a;p=man.p}
+    else if(ps&&ps.plan&&ps.plan[d]){a=ps.plan[d].a;p=ps.plan[d].p}
+    out.push({d,w,nw:w>=5||fer.has(d),hol:fer.has(d),a:a.slice(),p:p||""});
+  }
+  return out;
+}
+function renderTail(){
+  const box=$("tail"),t=getTail(),{m}=prevMonth(),ps=prevStored();
+  box.innerHTML="";
+  t.forEach(q=>{
+    const r=document.createElement("div");r.className="vac-row";
+    const l=document.createElement("label");l.style.minWidth="78px";
+    l.textContent=DIAS[q.w].slice(0,3)+" "+q.d+"/"+(m+1)+(q.hol?" (fer.)":"");
+    const s1=document.createElement("select"),s2=document.createElement("select"),sp=document.createElement("select");
+    fillSel(s1,q.a[0]);fillSel(s2,q.a[1]);fillSel(sp,q.p);
+    [s1,s2,sp].forEach(s=>{s.dataset.d=q.d;s.onchange=collectTail});
+    s1.dataset.k="a0";s2.dataset.k="a1";sp.dataset.k="p";
+    const lp=document.createElement("label");lp.textContent="pas.";
+    r.append(l,s1,s2,lp,sp);box.appendChild(r);
+  });
+  $("tailSrc").textContent=st.prevManual?"Cargado a mano.":(ps&&ps.plan&&Object.keys(ps.plan).length?"Tomado de la planilla del mes anterior guardada acá.":"No hay planilla del mes anterior guardada: completalo a mano.");
+  $("tailReset").style.display=st.prevManual&&ps&&ps.plan&&Object.keys(ps.plan).length?"":"none";
+}
+function collectTail(){
+  const o={};
+  document.querySelectorAll("#tail select").forEach(s=>{
+    const d=s.dataset.d;o[d]=o[d]||{a:["",""],p:""};
+    if(s.dataset.k==="a0")o[d].a[0]=s.value;else if(s.dataset.k==="a1")o[d].a[1]=s.value;else o[d].p=s.value;
+  });
+  st.prevTail=o;st.prevManual=true;save();renderTail();render();refreshStatus();
+}
+
+// ---------- validación ----------
+function prevPlanOf(d){const days=monthDays(),t=getTail(),P=d>1?st.plan[d-1]:t[t.length-1];return P?{a:P.a,p:P.p,gap:gapBefore(days,t,d)}:null}
+function dayIssues(x,P,prev){
+  const out=[];if(!P)return out;
+  const [a1,a2]=P.a;
+  if(!a1||!a2)out.push("faltan activas");
+  if(a1&&a2&&a1===a2)out.push("activa repetida");
+  if(a1&&a2&&incompatible(a1,a2))out.push(a1+"-"+a2+" incompatibles");
+  if(P.p&&P.a.includes(P.p))out.push("pasiva = activa");
+  [...P.a,P.p].filter(Boolean).forEach(s=>{if(onVac(s,x.d))out.push(s+" de vacaciones")});
+  if(prev&&prev.a){
+    P.a.filter(Boolean).forEach(s=>{if(prev.a.includes(s))out.push(s+" activa 2 días seguidos")});
+    if(!prev.gap&&P.p&&prev.a.includes(P.p))out.push(P.p+" estuvo de activa el día anterior");
+  }
+  const l=lado(x);
+  if(l==="S")P.a.forEach(s=>{if(cfg.soloDom.includes(s))out.push(s+" no hace sábados")});
+  if(l==="D")P.a.forEach(s=>{if(cfg.soloSab.includes(s))out.push(s+" no hace domingos")});
+  return out;
+}
+function totals(){return countsOf(monthDays(),st.plan)}
+function warnings(){
+  const w=[],days=monthDays();
+  days.forEach(x=>{const is=dayIssues(x,st.plan[x.d],prevPlanOf(x.d));if(is.length)w.push(x.d+": "+is.join(", "))});
+  if(Object.keys(st.plan).length){
+    const c=totals();
+    cfg.siglas.forEach(s=>{const can=days.some(x=>x.nw&&!onVac(s,x.d));if(can&&c[s].blk===0)w.push(s+" sin finde de pasiva")});
+    const tg=targets(days),rg=r=>r.lo===r.hi?String(r.lo):r.lo+"–"+r.hi;
+    cfg.siglas.forEach(s=>{
+      const chk=(v,r,n)=>{if(v<r.lo||v>r.hi)w.push(s+" con "+v+" "+n+" (objetivo "+rg(r)+")")};
+      chk(c[s].hab,tg.hab[s],"hábiles");
+      if(!cfg.soloSab.includes(s)&&!cfg.soloDom.includes(s)&&Math.abs(c[s].S-c[s].D)>(c[s].S+c[s].D)%2)w.push(s+" con "+c[s].S+" sáb. y "+c[s].D+" dom.");chk(c[s].fin,tg.fin[s],"días de finde");chk(c[s].ph+c[s].pf,tg.pas[s],"pasivas");
+    });
+  }
+  return w;
+}
+function render(){
+  $("titulo").textContent=MESES[Mo]+" "+Y;
+  const cal=$("cal");cal.innerHTML="";
+  DIAS.forEach(d=>{const e=document.createElement("div");e.className="dh";e.textContent=d;cal.appendChild(e)});
+  const days=monthDays();
+  const lead=days[0].w;
+  for(let i=0;i<lead;i++){const e=document.createElement("div");e.className="cell out";cal.appendChild(e)}
+  days.forEach(x=>{
+    const P=st.plan[x.d],e=document.createElement("div");
+    const iss=dayIssues(x,P,prevPlanOf(x.d));
+    e.className="cell"+(x.nw?" nw":"")+(x.hol?" hol":"")+(P&&P.lock?" locked":"")+(iss.length?" warn":"");
+    const vac=cfg.siglas.filter(s=>onVac(s,x.d));
+    e.innerHTML='<span class="num">'+x.d+'</span>'+
+      (vac.length?'<span class="vac" title="Vacaciones">'+vac.join(" ")+'</span>':'')+
+      (P?'<div class="act">'+P.a.filter(Boolean).join("-")+'</div><div class="pas">'+(P.p||"")+'</div>':'')+
+      (iss.length?'<span class="wmsg">!</span>':'');
+    e.onclick=()=>openModal(x);
+    cal.appendChild(e);
+  });
+  const tail=(7-(lead+days.length)%7)%7;
+  for(let i=0;i<tail;i++){const e=document.createElement("div");e.className="cell out";cal.appendChild(e)}
+  renderTotals();
+}
+function renderTotals(){
+  const c=totals(),days=monthDays(),tg=targets(days),has=Object.keys(st.plan).length;
+  const rg=r=>r.lo===r.hi?String(r.lo):r.lo+"–"+r.hi;
+  const td=(v,r)=>"<td class='"+(has&&(v<r.lo||v>r.hi)?"zero":"")+"' title='objetivo "+rg(r)+"'>"+v+"</td>";
+  let h="<tr><th>Sigla</th><th>Háb.</th><th>FdS</th><th>Pas.</th><th>P.háb</th><th>P.FdS</th><th>S/D</th><th>Bloq.</th></tr>";
+  cfg.siglas.forEach(s=>{
+    const can=days.some(x=>x.nw&&!onVac(s,x.d));
+    h+="<tr><td class='s'>"+s+"</td>"+td(c[s].hab,tg.hab[s])+td(c[s].fin,tg.fin[s])+td(c[s].ph+c[s].pf,tg.pas[s])+
+      "<td>"+c[s].ph+"</td><td>"+c[s].pf+"</td><td>"+c[s].S+"/"+c[s].D+"</td><td class='"+(has&&can&&!c[s].blk?"zero":"")+"'>"+c[s].blk+"</td></tr>";
+  });
+  const noVac=cfg.siglas.filter(s=>!st.vacs.some(v=>v.s===s));
+  if(noVac.length){const s0=noVac[0];
+    h+="<tr class='obj'><td class='s' style='font-weight:400'>Obj.</td><td>"+rg(tg.hab[s0])+"</td><td>"+rg(tg.fin[s0])+"</td><td>"+rg(tg.pas[s0])+"</td><td></td><td></td><td></td><td>≥1</td></tr>";}
+  const nh=days.filter(x=>!x.nw).length,nf=days.length-nh;
+  h+="<tr><td class='s' colspan='8' style='font-weight:400;color:#6b6a66'>Mes: "+nh+" hábiles · "+nf+" no hábiles</td></tr>";
+  $("tot").innerHTML=h;
+}
+function renderVacs(){
+  const box=$("vacs");box.innerHTML="";
+  st.vacs.forEach((v,i)=>{
+    const r=document.createElement("div");r.className="vac-row";
+    const sel=document.createElement("select");
+    cfg.siglas.forEach(s=>{const o=document.createElement("option");o.value=o.textContent=s;if(s===v.s)o.selected=true;sel.appendChild(o)});
+    const d1=document.createElement("input"),d2=document.createElement("input");
+    d1.type=d2.type="number";d1.min=d2.min=1;d1.max=d2.max=31;d1.value=v.d1;d2.value=v.d2;
+    const del=document.createElement("button");del.className="sm";del.textContent="✕";
+    const upd=()=>{v.s=sel.value;v.d1=+d1.value||1;v.d2=+d2.value||v.d1;save();render()};
+    sel.onchange=d1.onchange=d2.onchange=upd;
+    del.onclick=()=>{st.vacs.splice(i,1);save();renderVacs();render()};
+    const l1=document.createElement("label");l1.textContent="del";
+    const l2=document.createElement("label");l2.textContent="al";
+    r.append(sel,l1,d1,l2,d2,del);box.appendChild(r);
+  });
+}
+
+// ---------- modal ----------
+let mDay=null;
+function fillSel(sel,val){
+  sel.innerHTML="";
+  ["",...cfg.siglas].forEach(s=>{const o=document.createElement("option");o.value=s;o.textContent=s||"—";if(s===val)o.selected=true;sel.appendChild(o)});
+}
+function openModal(x){
+  mDay=x;const P=st.plan[x.d]||{a:["",""],p:""};
+  $("mTitle").textContent=DIAS[x.w]+" "+x.d+(x.hol?" (feriado)":"");
+  fillSel($("mA1"),P.a[0]);fillSel($("mA2"),P.a[1]);fillSel($("mP"),P.p);
+  $("mUnlock").style.display=P.lock?"":"none";
+  checkModal();$("mbg").style.display="flex";
+}
+function checkModal(){
+  const P={a:[$("mA1").value,$("mA2").value],p:$("mP").value};
+  const is=dayIssues(mDay,P,prevPlanOf(mDay.d));
+  $("mMsg").className="msg "+(is.length?"bad":"ok");
+  $("mMsg").textContent=is.length?is.join(" · "):"OK";
+}
+["mA1","mA2","mP"].forEach(id=>$(id).onchange=checkModal);
+$("mCancel").onclick=()=>$("mbg").style.display="none";
+$("mOk").onclick=()=>{st.plan[mDay.d]={a:[$("mA1").value,$("mA2").value],p:$("mP").value,lock:true};save();render();$("mbg").style.display="none";refreshStatus()};
+$("mUnlock").onclick=()=>{if(st.plan[mDay.d])st.plan[mDay.d].lock=false;save();render();$("mbg").style.display="none"};
+function refreshStatus(gen){const w=warnings();$("status").className="msg "+(w.length?"bad":"ok");$("status").textContent=w.length?("Atención: "+w.join(" · ")):(gen?"Planilla generada sin conflictos.":"")}
+
+// ---------- controles ----------
+const mes=$("mes");MESES.forEach((m,i)=>{const o=document.createElement("option");o.value=i;o.textContent=m;mes.appendChild(o)});
+const now=new Date();const nx=new Date(now.getFullYear(),now.getMonth()+1,1);
+const last=ls.get("guardias:last");
+Y=last?last.y:nx.getFullYear();Mo=last?last.m:nx.getMonth();
+mes.value=Mo;$("anio").value=Y;
+function changeMonth(){Y=+$("anio").value||Y;Mo=+mes.value;ls.set("guardias:last",{y:Y,m:Mo});$("status").textContent="";loadMonth()}
+mes.onchange=changeMonth;$("anio").onchange=changeMonth;
+$("feriados").onchange=()=>{
+  const n=new Date(Y,Mo+1,0).getDate();
+  st.feriados=[...new Set($("feriados").value.split(/[,;\s]+/).map(Number).filter(d=>d>=1&&d<=n))].sort((a,b)=>a-b);
+  $("feriados").value=st.feriados.join(", ");save();render();
+};
+$("sugerir").onclick=()=>{st.feriados=defaultHolidays(Y,Mo);$("feriados").value=st.feriados.join(", ");save();render()};
+$("addVac").onclick=()=>{st.vacs.push({s:cfg.siglas[0],d1:1,d2:7});save();renderVacs();render()};
+$("generar").onclick=()=>{$("status").className="msg";$("status").textContent="Generando…";setTimeout(generate,20)};
+$("tailReset").onclick=()=>{st.prevManual=false;st.prevTail={};save();renderTail();render()};
+$("limpiar").onclick=()=>{Object.values(st.plan).forEach(p=>p.lock=false);save();render()};
+$("copiar").onclick=async()=>{
+  const c=totals();let t="Sigla\tHáb\tFdS\tP.háb\tP.FdS\tFindes pasiva\n";
+  cfg.siglas.forEach(s=>t+=[s,c[s].hab,c[s].fin,c[s].ph,c[s].pf,c[s].blk].join("\t")+"\n");
+  try{await navigator.clipboard.writeText(t);$("status").className="msg ok";$("status").textContent="Totales copiados."}
+  catch(e){$("status").className="msg bad";$("status").textContent="No se pudo copiar en este navegador."}
+};
+
+// ---------- reglas ----------
+function cfgToForm(){
+  $("cfgSiglas").value=cfg.siglas.join(", ");
+  $("cfgIncomp").value=cfg.incomp.map(p=>p.join("-")).join("; ");
+  $("cfgSab").value=cfg.soloSab.join(", ");$("cfgDom").value=cfg.soloDom.join(", ");
+  document.querySelectorAll(".cfg-grid input").forEach(i=>i.value=cfg.prio[+i.dataset.d][i.dataset.k].join(", "));
+}
+const parseList=s=>s.split(/[,\s]+/).map(x=>x.trim().toUpperCase()).filter(Boolean);
+$("cfgSave").onclick=()=>{
+  const sig=parseList($("cfgSiglas").value);
+  const inc=$("cfgIncomp").value.split(";").map(p=>p.split("-").map(x=>x.trim().toUpperCase())).filter(p=>p.length===2&&p[0]&&p[1]);
+  const prio=[0,1,2,3,4].map(d=>({fixed:[],soft:[],pool:[]}));
+  document.querySelectorAll(".cfg-grid input").forEach(i=>prio[+i.dataset.d][i.dataset.k]=parseList(i.value).filter(s=>sig.includes(s)));
+  cfg={siglas:sig,incomp:inc,prio,soloSab:parseList($("cfgSab").value).filter(s=>sig.includes(s)),soloDom:parseList($("cfgDom").value).filter(s=>sig.includes(s))};ls.set("guardias:cfg",cfg);cfgToForm();renderVacs();render();
+  $("status").className="msg ok";$("status").textContent="Reglas guardadas.";
+};
+$("cfgReset").onclick=()=>{cfg=JSON.parse(JSON.stringify(DEFAULT_CFG));ls.set("guardias:cfg",cfg);cfgToForm();renderVacs();render()};
+
+// ---------- respaldo ----------
+function backup(){
+  const o={};
+  try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k.startsWith("guardias:"))o[k]=JSON.parse(localStorage.getItem(k))}}catch(e){}
+  return JSON.stringify({app:"guardias",v:1,fecha:new Date().toISOString().slice(0,10),datos:o});
+}
+const bkMsg=(t,ok)=>{$("bkMsg").className="msg "+(ok?"ok":"bad");$("bkMsg").textContent=t};
+$("bkCopy").onclick=async()=>{
+  const t=backup();$("bkText").value=t;
+  try{await navigator.clipboard.writeText(t);bkMsg("Respaldo copiado. Pegalo en Notas o en un mail.",true)}
+  catch(e){$("bkText").select();bkMsg("Quedó en el cuadro de abajo: seleccionalo y copialo.",false)}
+};
+$("bkDown").onclick=()=>{
+  try{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([backup()],{type:"application/json"}));
+    a.download="guardias-respaldo-"+new Date().toISOString().slice(0,10)+".json";document.body.appendChild(a);a.click();a.remove();
+    bkMsg("Si no se descargó, usá Copiar respaldo.",true)}catch(e){bkMsg("No se pudo descargar: usá Copiar respaldo.",false)}
+};
+$("bkFile").onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{$("bkText").value=r.result;$("bkLoad").click()};r.readAsText(f);e.target.value=""};
+$("bkLoad").onclick=()=>{
+  try{const o=JSON.parse($("bkText").value.trim());if(o.app!=="guardias"||!o.datos)throw 0;
+    Object.entries(o.datos).forEach(([k,v])=>{if(k.startsWith("guardias:"))ls.set(k,v)});
+    cfg=ls.get("guardias:cfg")||cfg;cfgToForm();loadMonth();bkMsg("Respaldo del "+(o.fecha||"")+" restaurado.",true)}
+  catch(e){bkMsg("El texto no es un respaldo válido.",false)}
+};
+
+cfgToForm();loadMonth();
+})();
+</script>
+</body>
+</html>

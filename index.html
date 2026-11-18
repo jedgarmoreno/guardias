@@ -118,8 +118,7 @@ tr.obj td{color:var(--mut);font-size:.8rem}
       <button class="pri" id="generar">Generar planilla</button>
       <button id="limpiar">Borrar días fijados</button>
       <button id="copiar">Copiar totales</button>
-      <button id="copiarPl">Copiar planilla (Excel)</button>
-      <button id="imprimir">Imprimir / PDF</button>
+      <button class="pri" id="pdfBtn">PDF para enviar</button>
     </div>
     <div class="hint">Tocá un día para corregirlo a mano. Los días corregidos quedan fijados (borde dorado) y se respetan cuando volvés a generar. Borde rojo: hay una regla rota en ese día.</div>
     <div id="status" class="msg"></div>
@@ -764,16 +763,69 @@ $("addVac").onclick=()=>{st.vacs.push({s:cfg.siglas[0],d1:1,d2:7});save();render
 $("generar").onclick=()=>{$("status").className="msg";$("status").textContent="Generando…";setTimeout(generate,20)};
 $("tailReset").onclick=()=>{st.prevManual=false;st.prevTail={};save();renderTail();render()};
 $("limpiar").onclick=()=>{Object.values(st.plan).forEach(p=>p.lock=false);save();render()};
-$("imprimir").onclick=()=>{try{window.print()}catch(e){}};
-$("copiarPl").onclick=async()=>{
-  const days=monthDays(),c=totals();
-  let t=MESES[Mo]+" "+Y+"\nDía\tFecha\tActivas\tPasiva\tTipo\n";
-  days.forEach(x=>{const P=st.plan[x.d]||{a:[],p:""};
-    t+=DIAS[x.w]+"\t"+x.d+"/"+(Mo+1)+"\t"+P.a.filter(Boolean).join("-")+"\t"+(P.p||"")+"\t"+(x.hol?"Feriado":x.nw?"Fin de semana":"Hábil")+"\n"});
-  t+="\nSigla\tHábiles\tFin de semana\tPasivas\tSáb/Dom\n";
-  cfg.siglas.forEach(s=>t+=[s,c[s].hab,c[s].fin,c[s].ph+c[s].pf,c[s].S+"/"+c[s].D].join("\t")+"\n");
-  try{await navigator.clipboard.writeText(t);$("status").className="msg ok";$("status").textContent="Planilla copiada: pegala en Excel, Google Sheets o un mail."}
-  catch(e){$("status").className="msg bad";$("status").textContent="No se pudo copiar en este navegador."}
+// ---------- PDF (A4 apaisado, solo el mes) ----------
+function drawMonth(){
+  const W=2339,H=1654,k=W/297,mm=v=>v*k,pt=v=>v*k*25.4/72;
+  const cv=document.createElement("canvas");cv.width=W;cv.height=H;
+  const g=cv.getContext("2d"),F="Helvetica, Arial, sans-serif";
+  g.fillStyle="#fff";g.fillRect(0,0,W,H);
+  const days=monthDays(),lead=days[0].w,weeks=Math.ceil((lead+days.length)/7);
+  const x0=mm(8),cw=(W-mm(16))/7,yT=mm(8),yH=yT+mm(13),hh=mm(8),yG=yH+hh,rh=(H-mm(8)-yG)/weeks;
+  g.fillStyle="#000";g.font=pt(22)+"px "+F;g.textBaseline="alphabetic";g.textAlign="left";
+  g.fillText(MESES[Mo]+" "+Y,x0,yT+pt(20));
+  g.fillStyle="#3d3d3a";g.fillRect(x0,yH,cw*7,hh);
+  g.fillStyle="#fff";g.font=pt(13)+"px "+F;g.textAlign="center";g.textBaseline="middle";
+  DIAS.forEach((d,i)=>g.fillText(d,x0+cw*i+cw/2,yH+hh/2));
+  for(let i=0;i<weeks*7;i++){
+    const r=Math.floor(i/7),c=i%7,x=x0+c*cw,y=yG+r*rh,d=i-lead+1;
+    if(d<1||d>days.length){g.fillStyle="#e6e6e6";g.fillRect(x,y,cw,rh);continue}
+    const x_=days[d-1],P=st.plan[d];
+    g.fillStyle="#000";g.textAlign="left";g.textBaseline="top";g.font=pt(13)+"px "+F;
+    const nx=x+mm(1.5),ny=y+mm(1.5);g.fillText(String(d),nx,ny);
+    if(x_.hol){const w=g.measureText(String(d)).width;g.lineWidth=2.5;g.beginPath();
+      g.ellipse(nx+w/2,ny+pt(13)*0.45,Math.max(w,pt(13)*0.7)/2+mm(1.2),pt(13)*0.45+mm(1),0,0,Math.PI*2);g.stroke()}
+    if(P){
+      g.textAlign="center";g.textBaseline="middle";g.font="bold "+pt(28)+"px "+F;
+      g.fillText(P.a.filter(Boolean).join("-"),x+cw/2,y+rh*0.46);
+      if(P.p){g.textAlign="right";g.textBaseline="alphabetic";g.font="bold "+pt(15)+"px "+F;g.fillText(P.p,x+cw-mm(3),y+rh-mm(2))}
+    }
+  }
+  g.strokeStyle="#000";g.lineWidth=3;g.beginPath();
+  for(let c=0;c<=7;c++){g.moveTo(x0+c*cw,yH);g.lineTo(x0+c*cw,yG+weeks*rh)}
+  for(let r=0;r<=weeks;r++){g.moveTo(x0,yG+r*rh);g.lineTo(x0+7*cw,yG+r*rh)}
+  g.moveTo(x0,yH);g.lineTo(x0+7*cw,yH);g.stroke();
+  return cv;
+}
+function jpegToPdf(jpg,w,h){
+  const enc=new TextEncoder(),parts=[],offs=[];let len=0;
+  const add=x=>{const b=typeof x==="string"?enc.encode(x):x;parts.push(b);len+=b.length};
+  const obj=(n,body)=>{offs[n]=len;add(n+" 0 obj\n");body();add("\nendobj\n")};
+  add("%PDF-1.4\n");
+  obj(1,()=>add("<< /Type /Catalog /Pages 2 0 R >>"));
+  obj(2,()=>add("<< /Type /Pages /Kids [3 0 R] /Count 1 >>"));
+  obj(3,()=>add("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 842 595] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>"));
+  obj(4,()=>{add("<< /Type /XObject /Subtype /Image /Width "+w+" /Height "+h+" /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length "+jpg.length+" >>\nstream\n");add(jpg);add("\nendstream")});
+  const cs="q 842 0 0 595 0 0 cm /Im0 Do Q";
+  obj(5,()=>add("<< /Length "+cs.length+" >>\nstream\n"+cs+"\nendstream"));
+  const xref=len;let x="xref\n0 6\n0000000000 65535 f \n";
+  for(let i=1;i<=5;i++)x+=String(offs[i]).padStart(10,"0")+" 00000 n \n";
+  add(x+"trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n"+xref+"\n%%EOF");
+  return new Blob(parts,{type:"application/pdf"});
+}
+function buildPdf(){
+  const cv=drawMonth(),b64=cv.toDataURL("image/jpeg",0.9).split(",")[1],bin=atob(b64),jpg=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++)jpg[i]=bin.charCodeAt(i);
+  return jpegToPdf(jpg,cv.width,cv.height);
+}
+$("pdfBtn").onclick=async()=>{
+  if(!Object.keys(st.plan).length){$("status").className="msg bad";$("status").textContent="Primero generá la planilla.";return}
+  const name="Guardias_"+MESES[Mo]+"_"+Y+".pdf",blob=buildPdf(),file=new File([blob],name,{type:"application/pdf"});
+  try{
+    if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],title:"Guardias "+MESES[Mo]+" "+Y});return}
+  }catch(e){if(e&&e.name==="AbortError")return}
+  try{const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();
+    $("status").className="msg ok";$("status").textContent="PDF descargado: "+name}
+  catch(e){$("status").className="msg bad";$("status").textContent="Este navegador no permite guardar el PDF."}
 };
 $("copiar").onclick=async()=>{
   const c=totals();let t="Sigla\tHáb\tFdS\tP.háb\tP.FdS\tFindes pasiva\n";

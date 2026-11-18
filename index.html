@@ -74,6 +74,8 @@ tr.obj td{color:var(--mut);font-size:.8rem}
   .cell.nw{background:#fff}
   .cell.warn,.cell.locked{box-shadow:none}
   .cell .wmsg{display:none}
+  .cal .dh,.cell.out{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .legend{display:none}
 }
 </style>
 </head>
@@ -114,6 +116,8 @@ tr.obj td{color:var(--mut);font-size:.8rem}
       <button class="pri" id="generar">Generar planilla</button>
       <button id="limpiar">Borrar días fijados</button>
       <button id="copiar">Copiar totales</button>
+      <button id="copiarPl">Copiar planilla (Excel)</button>
+      <button id="imprimir">Imprimir / PDF</button>
     </div>
     <div class="hint">Tocá un día para corregirlo a mano. Los días corregidos quedan fijados (borde dorado) y se respetan cuando volvés a generar. Borde rojo: hay una regla rota en ese día.</div>
     <div id="status" class="msg"></div>
@@ -757,6 +761,17 @@ $("addVac").onclick=()=>{st.vacs.push({s:cfg.siglas[0],d1:1,d2:7});save();render
 $("generar").onclick=()=>{$("status").className="msg";$("status").textContent="Generando…";setTimeout(generate,20)};
 $("tailReset").onclick=()=>{st.prevManual=false;st.prevTail={};save();renderTail();render()};
 $("limpiar").onclick=()=>{Object.values(st.plan).forEach(p=>p.lock=false);save();render()};
+$("imprimir").onclick=()=>{try{window.print()}catch(e){}};
+$("copiarPl").onclick=async()=>{
+  const days=monthDays(),c=totals();
+  let t=MESES[Mo]+" "+Y+"\nDía\tFecha\tActivas\tPasiva\tTipo\n";
+  days.forEach(x=>{const P=st.plan[x.d]||{a:[],p:""};
+    t+=DIAS[x.w]+"\t"+x.d+"/"+(Mo+1)+"\t"+P.a.filter(Boolean).join("-")+"\t"+(P.p||"")+"\t"+(x.hol?"Feriado":x.nw?"Fin de semana":"Hábil")+"\n"});
+  t+="\nSigla\tHábiles\tFin de semana\tPasivas\tSáb/Dom\n";
+  cfg.siglas.forEach(s=>t+=[s,c[s].hab,c[s].fin,c[s].ph+c[s].pf,c[s].S+"/"+c[s].D].join("\t")+"\n");
+  try{await navigator.clipboard.writeText(t);$("status").className="msg ok";$("status").textContent="Planilla copiada: pegala en Excel, Google Sheets o un mail."}
+  catch(e){$("status").className="msg bad";$("status").textContent="No se pudo copiar en este navegador."}
+};
 $("copiar").onclick=async()=>{
   const c=totals();let t="Sigla\tHáb\tFdS\tP.háb\tP.FdS\tFindes pasiva\n";
   cfg.siglas.forEach(s=>t+=[s,c[s].hab,c[s].fin,c[s].ph,c[s].pf,c[s].blk].join("\t")+"\n");

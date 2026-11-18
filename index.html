@@ -63,19 +63,21 @@ tr.obj td{color:var(--mut);font-size:.8rem}
 
 @media print{
   @page{size:A4 landscape;margin:8mm}
-  body{background:#fff}
-  .noprint{display:none!important}
-  main{padding:0;max-width:none}
-  .card.sheetcard{border:none;padding:0}
-  .sheet{grid-template-columns:1fr 210px}
-  .cell{min-height:30mm}
-  .cell .act{font-size:20pt}
-  .cell .pas{font-size:11pt}
-  .cell.nw{background:#fff}
-  .cell.warn,.cell.locked{box-shadow:none}
-  .cell .wmsg{display:none}
-  .cal .dh,.cell.out{-webkit-print-color-adjust:exact;print-color-adjust:exact}
-  .legend{display:none}
+  html,body{background:#fff;margin:0}
+  .noprint,#status,.sheet>div:last-child{display:none!important}
+  main{padding:0;max-width:none;width:281mm}
+  .card.sheetcard{border:none;padding:0;margin:0;border-radius:0}
+  .sheet{display:block}
+  .title{font-size:22pt;margin:0 0 3mm;height:10mm;line-height:10mm}
+  .cal{width:281mm;border-color:#000}
+  .cal .dh{font-size:13pt;padding:1.5mm 0;height:8mm;box-sizing:border-box;border-color:#000;
+    -webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .cell{min-height:0;height:calc(171mm / var(--weeks,5));border-color:#000;background:#fff!important;box-shadow:none!important;cursor:default}
+  .cell.out{background:#e6e6e6!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .cell .num{font-size:13pt;color:#000}
+  .cell .act{font-size:28pt;font-weight:700;color:#000;top:46%}
+  .cell .pas{font-size:15pt;color:#000;right:3mm;bottom:2mm}
+  .cell .vac,.cell .wmsg{display:none}
 }
 </style>
 </head>
@@ -680,6 +682,7 @@ function render(){
     cal.appendChild(e);
   });
   const tail=(7-(lead+days.length)%7)%7;
+  cal.style.setProperty('--weeks',Math.ceil((lead+days.length)/7));
   for(let i=0;i<tail;i++){const e=document.createElement("div");e.className="cell out";cal.appendChild(e)}
   renderTotals();
 }
